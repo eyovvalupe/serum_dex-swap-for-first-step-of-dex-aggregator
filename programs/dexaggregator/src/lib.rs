@@ -1,8 +1,8 @@
-use std::num::NonZeroU64;
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use serum_dex::state::MarketState;
 use solana_program::entrypoint::ProgramResult;
+use std::num::NonZeroU64;
 mod dex;
 
 declare_id!("8Gieuu4fEtwDM4Ztm6rGsaRrXZ7nTGdwZZR9xg8VqFrR");
