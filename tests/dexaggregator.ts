@@ -8,12 +8,14 @@ import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { assert } from "chai";
 import * as utils from "./utils";
+import { Market } from "@project-serum/serum";
 
-const DEX_ADDRESS = 'B5ytTSxaVr9g4VSrnm6mWjMM4PHucFVvq1CforZiGCm7';
+const DEX_ADDRESS = 'DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY';
 
-const BTC_PRICE = 19000;
+const BTC_PRICE = 60000;
 const ETH_PRICE = 1300;
 const TAKER_FEE = 0.0004;
+const USER_FEE = 0.01;
 const { setupOrderbook, Side } = utils;
 
 describe("dexaggregator", () => {
@@ -31,10 +33,17 @@ describe("dexaggregator", () => {
     btcMarketVaultSigner: PublicKey,
     ethMarketVaultSigner: PublicKey;
 
-  const MarketsOwner = FileKeypair.loadOrGenerate("./owner.json");
-  const marketsOwner = MarketsOwner.keypair;
+  const MarketsOwnerSecretKey = "118,4,127,28,75,124,21,179,4,250,213,173,60,105,133,10,134,127,146,160,126,57,171,151,175,64,198,113,139,61,76,79,192,111,175,89,144,126,239,243,228,99,15,88,38,89,227,254,144,31,90,35,23,107,9,110,119,174,14,83,216,53,215,105"
+  let keyOwner = Uint8Array.from(MarketsOwnerSecretKey.split(',').map(i => parseInt(i)));
+  const marketsOwner = Keypair.fromSecretKey(keyOwner);
+  // const balanceLamports = await connection.getBalance(new PublicKey(marketsOwner));
+  // const balanceInSOL = balanceLamports / LAMPORTS_PER_SOL;
+  // console.log(`MarketOwner has ${balanceInSOL} SOL`);
 
-  const Alice = Keypair.generate();
+  const secretKey = "50,165,8,189,221,75,244,135,134,126,59,153,51,130,29,44,209,91,5,97,193,118,26,147,99,208,233,114,195,113,36,46,213,242,246,132,115,89,200,50,200,32,190,81,242,23,150,118,242,245,63,113,166,121,64,101,178,234,41,76,51,239,177,232"
+  let key = Uint8Array.from(secretKey.split(',').map(i => parseInt(i)));
+  const Alice = Keypair.fromSecretKey(key);
+
 
   let
     aliceBtcAccount: PublicKey,
@@ -43,15 +52,17 @@ describe("dexaggregator", () => {
 
   const dex = new Dex(dexAddres, connection);
 
-  it("BOILERPLATE: Sets up the dex, coins and the markets", async () => {
-    await connection.confirmTransaction(
-      await connection.requestAirdrop(
-        marketsOwner.publicKey,
-        100 * LAMPORTS_PER_SOL
-      ),
-      'confirmed'
-    );
+  it("Initialize owner", async () => {
+    const tx = program.methods
+        .initialize(
+          marketsOwner.publicKey
+        )
+        .accounts({})
+        .signers([marketsOwner])
+        .rpc()
+  })
 
+  it("Sets up the dex, coins and the markets", async () => {
     BTC = await dex.createCoin('BTC', 6, marketsOwner, marketsOwner, marketsOwner);
     ETH = await dex.createCoin('ETH', 6, marketsOwner, marketsOwner, marketsOwner);
     USDC = await dex.createCoin('USDC', 6, marketsOwner, marketsOwner, marketsOwner);
@@ -68,6 +79,10 @@ describe("dexaggregator", () => {
       ],
       dexAddres
     );
+  
+    console.log("BTC mint is ", BTC.mint);
+    console.log("btcMarketAddress is ", btcMarket.address);
+    console.log("btcMarketVaultSigner is ", btcMarketVaultSigner);
 
     ethMarket = await dex.initDexMarket(marketsOwner, ETH, USDC, {
       lotSize: 0.001,
@@ -81,6 +96,12 @@ describe("dexaggregator", () => {
       ],
       dexAddres
     );
+
+    console.log("ETH mint is ", ETH.mint);
+    console.log("ethMarketAddress is ", ethMarket.address)
+    console.log("ethMarketVaultSigner is ", ethMarketVaultSigner)
+
+    console.log("USDC mint is ", USDC.mint);
 
     await BTC.fundAccount(1e10, marketsOwner, connection);
     await ETH.fundAccount(1e10, marketsOwner, connection);
@@ -102,22 +123,52 @@ describe("dexaggregator", () => {
 
   });
 
-  it("BOILERPLATE: Sets up account for Alice", async () => {
-    await connection.confirmTransaction(
-      await connection.requestAirdrop(
-        Alice.publicKey,
-        10 * LAMPORTS_PER_SOL
-      ),
-      'confirmed'
-    );
+    let 
+      btcAddress: PublicKey,
+      ethAddress: PublicKey,
+      requestQueue: PublicKey,
+      eventQueue: PublicKey,
+      bids: PublicKey,
+      asks: PublicKey,
+      baseVault: PublicKey,
+      quoteVault: PublicKey,
+      BTCMint: PublicKey,
+      ETHMint: PublicKey,
+      USDCMint: PublicKey;
 
+    it("Get Market from marketAddress", async () => {
+      btcAddress = new PublicKey("4LNpf1yNiMFoZaCAxS9o7gGr8rh6U1d8ewFDdf3TPCMX");
+      btcMarketVaultSigner = new PublicKey("43JEEYRRUVwHEh2WeiSoEiz2nhsXKUyQjR4oDQQUQQYM");
+
+      ethAddress = new PublicKey("D1FdYJFs29DKjTTMEoXQNAw6C47RqBV2yPtyT4Mu5XsR");
+      ethMarketVaultSigner = new PublicKey("6r11wJxd5EsC5XjT4RESvZCxEuNtXKtTJY45cUWbHBhE");
+
+      BTCMint = new PublicKey("ADYMjcrEmokfZyC7vPrRdwE1VVw85Hbhqy8DnnxH8bmP");
+      ETHMint = new PublicKey("88ySs9GibAd7bzck8wG9T7t1vG3HitkifBj91MXKRUgt");
+      USDCMint = new PublicKey("8yvpPAk8avJitZbczXMya9tjZZa4s4txK7FCHEFNaoP");
+      const market = await Market.load(connection, btcAddress, undefined, dexAddres);
+
+      requestQueue = new PublicKey(market.decoded.requestQueue);
+      eventQueue = new PublicKey(market.decoded.eventQueue);
+      bids = new PublicKey(market.decoded.bids);
+      asks = new PublicKey(market.decoded.asks);
+      baseVault = new PublicKey(market.decoded.baseVault);
+      quoteVault = new PublicKey(market.decoded.quoteVault);
+
+    })
+
+  it("Sets up account for Alice", async () => {
     await BTC.fundAccount(10, Alice, connection);
     await ETH.fundAccount(100, Alice, connection);
     await USDC.fundAccount(1e7, Alice, connection);
 
-    aliceBtcAccount = await getAssociatedTokenAddress(BTC.mint, Alice.publicKey);
-    aliceEthAccount = await getAssociatedTokenAddress(ETH.mint, Alice.publicKey);
-    aliceUsdcAccount = await getAssociatedTokenAddress(USDC.mint, Alice.publicKey);
+    // aliceBtcAccount = await getAssociatedTokenAddress(BTC.mint, Alice.publicKey);
+    // aliceEthAccount = await getAssociatedTokenAddress(ETH.mint, Alice.publicKey);
+    // aliceUsdcAccount = await getAssociatedTokenAddress(USDC.mint, Alice.publicKey);
+
+    aliceBtcAccount = await getAssociatedTokenAddress(BTCMint, Alice.publicKey);
+    aliceEthAccount = await getAssociatedTokenAddress(ETHMint, Alice.publicKey);
+    aliceUsdcAccount = await getAssociatedTokenAddress(USDCMint, Alice.publicKey);
   });
 
   it('should swap from BTC -> USDC', async () => {
@@ -130,18 +181,20 @@ describe("dexaggregator", () => {
     const swapTx = await program.methods
       .swap(
         Side.Ask,
-        new anchor.BN(swapBtcInput * 10 ** BTC.decimals),
+        // new anchor.BN(swapBtcInput * 10 ** BTC.decimals),
+        new anchor.BN(swapBtcInput * 10 ** 8),
         new anchor.BN(0),
       )
       .accounts({
         market: {
-          market: btcMarket.address,
-          requestQueue: btcMarket.serumMarket.decoded.requestQueue,
-          eventQueue: btcMarket.serumMarket.decoded.eventQueue,
-          marketBids: btcMarket.serumMarket.decoded.bids,
-          marketAsks: btcMarket.serumMarket.decoded.asks,
-          coinVault: btcMarket.serumMarket.decoded.baseVault,
-          pcVault: btcMarket.serumMarket.decoded.quoteVault,
+          // market: btcMarket.address,
+          market: btcAddress,
+          requestQueue: requestQueue,
+          eventQueue: eventQueue,
+          marketBids: bids,
+          marketAsks: asks,
+          coinVault: baseVault,
+          pcVault: quoteVault,
           vaultSigner: btcMarketVaultSigner,
           coinWallet: aliceBtcAccount,
         },
@@ -151,7 +204,7 @@ describe("dexaggregator", () => {
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .signers([Alice])
-      .rpc({ skipPreflight: true });
+      .rpc({ skipPreflight: false });
 
     const btcBalanceAfter = await connection.getTokenAccountBalance(aliceBtcAccount);
     const usdcBalanceAfter = await connection.getTokenAccountBalance(aliceUsdcAccount);
@@ -160,7 +213,7 @@ describe("dexaggregator", () => {
     const usdcBalanceChange = usdcBalanceAfter.value.uiAmount - usdcBalanceBefore.value.uiAmount;
 
     assert.ok(-btcBalanceChange === swapBtcInput);
-    assert.ok(usdcBalanceChange <= expectedUsdcOutput);
+    assert.ok(usdcBalanceChange / (1 - USER_FEE) <= expectedUsdcOutput);
   });
 
   it('should swap from USDC -> BTC', async () => {
@@ -178,13 +231,13 @@ describe("dexaggregator", () => {
       )
       .accounts({
         market: {
-          market: btcMarket.address,
-          requestQueue: btcMarket.serumMarket.decoded.requestQueue,
-          eventQueue: btcMarket.serumMarket.decoded.eventQueue,
-          marketBids: btcMarket.serumMarket.decoded.bids,
-          marketAsks: btcMarket.serumMarket.decoded.asks,
-          coinVault: btcMarket.serumMarket.decoded.baseVault,
-          pcVault: btcMarket.serumMarket.decoded.quoteVault,
+          market: btcAddress,
+          requestQueue: requestQueue,
+          eventQueue: eventQueue,
+          marketBids: bids,
+          marketAsks: asks,
+          coinVault: baseVault,
+          pcVault: quoteVault,
           vaultSigner: btcMarketVaultSigner,
           coinWallet: aliceBtcAccount,
         },
@@ -194,7 +247,7 @@ describe("dexaggregator", () => {
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .signers([Alice])
-      .rpc({ skipPreflight: true });
+      .rpc({ skipPreflight: false });
     console.log(swapTx);
     const btcBalanceAfter = await connection.getTokenAccountBalance(aliceBtcAccount);
     const usdcBalanceAfter = await connection.getTokenAccountBalance(aliceUsdcAccount);
@@ -203,7 +256,7 @@ describe("dexaggregator", () => {
     const usdcBalanceChange = usdcBalanceAfter.value.uiAmount - usdcBalanceBefore.value.uiAmount;
 
     assert.ok(-usdcBalanceChange <= swapUsdcInput);
-    assert.ok(btcBalanceChange <= expectedBtcOutput);
+    assert.ok(btcBalanceChange / (1 - USER_FEE) <= expectedBtcOutput);
   });
 
   it('should fail to swap because min output not met', async () => {
@@ -223,15 +276,15 @@ describe("dexaggregator", () => {
         )
         .accounts({
           market: {
-            market: btcMarket.address,
-            requestQueue: btcMarket.serumMarket.decoded.requestQueue,
-            eventQueue: btcMarket.serumMarket.decoded.eventQueue,
-            marketBids: btcMarket.serumMarket.decoded.bids,
-            marketAsks: btcMarket.serumMarket.decoded.asks,
-            coinVault: btcMarket.serumMarket.decoded.baseVault,
-            pcVault: btcMarket.serumMarket.decoded.quoteVault,
-            vaultSigner: btcMarketVaultSigner,
-            coinWallet: aliceBtcAccount,
+            market: btcAddress,
+          requestQueue: requestQueue,
+          eventQueue: eventQueue,
+          marketBids: bids,
+          marketAsks: asks,
+          coinVault: baseVault,
+          pcVault: quoteVault,
+          vaultSigner: btcMarketVaultSigner,
+          coinWallet: aliceBtcAccount,
           },
           walletOwner: Alice.publicKey,
           pcWallet: aliceUsdcAccount,
@@ -239,7 +292,7 @@ describe("dexaggregator", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
         })
         .signers([Alice])
-        .rpc({ skipPreflight: true });
+        .rpc({ skipPreflight: false });
     } catch (err) {
       const btcBalanceAfter = await connection.getTokenAccountBalance(aliceBtcAccount);
       const usdcBalanceAfter = await connection.getTokenAccountBalance(aliceUsdcAccount);
@@ -271,13 +324,13 @@ describe("dexaggregator", () => {
         )
         .accounts({
           market: {
-            market: btcMarket.address,
-            requestQueue: btcMarket.serumMarket.decoded.requestQueue,
-            eventQueue: btcMarket.serumMarket.decoded.eventQueue,
-            marketBids: btcMarket.serumMarket.decoded.bids,
-            marketAsks: btcMarket.serumMarket.decoded.asks,
-            coinVault: btcMarket.serumMarket.decoded.baseVault,
-            pcVault: btcMarket.serumMarket.decoded.quoteVault,
+            market: btcAddress,
+            requestQueue: requestQueue,
+            eventQueue: eventQueue,
+            marketBids: bids,
+            marketAsks: asks,
+            coinVault: baseVault,
+            pcVault: quoteVault,
             vaultSigner: btcMarketVaultSigner,
             coinWallet: aliceBtcAccount,
           },
@@ -287,7 +340,7 @@ describe("dexaggregator", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
         })
         .signers([Alice])
-        .rpc({ skipPreflight: true });
+        .rpc({ skipPreflight: false });
     } catch (err) {
       const btcBalanceAfter = await connection.getTokenAccountBalance(aliceBtcAccount);
       const usdcBalanceAfter = await connection.getTokenAccountBalance(aliceUsdcAccount);
@@ -318,24 +371,24 @@ describe("dexaggregator", () => {
     )
       .accounts({
         from: {
-          market: ethMarket.address,
-          requestQueue: ethMarket.serumMarket.decoded.requestQueue,
-          eventQueue: ethMarket.serumMarket.decoded.eventQueue,
-          marketBids: ethMarket.serumMarket.decoded.bids,
-          marketAsks: ethMarket.serumMarket.decoded.asks,
-          coinVault: ethMarket.serumMarket.decoded.baseVault,
-          pcVault: ethMarket.serumMarket.decoded.quoteVault,
-          vaultSigner: ethMarketVaultSigner,
-          coinWallet: aliceEthAccount,
+          market: ethAddress,
+          requestQueue: requestQueue,
+          eventQueue: eventQueue,
+          marketBids: bids,
+          marketAsks: asks,
+          coinVault: baseVault,
+          pcVault: quoteVault,
+          vaultSigner: btcMarketVaultSigner,
+          coinWallet: aliceBtcAccount,
         },
         to: {
-          market: btcMarket.address,
-          requestQueue: btcMarket.serumMarket.decoded.requestQueue,
-          eventQueue: btcMarket.serumMarket.decoded.eventQueue,
-          marketBids: btcMarket.serumMarket.decoded.bids,
-          marketAsks: btcMarket.serumMarket.decoded.asks,
-          coinVault: btcMarket.serumMarket.decoded.baseVault,
-          pcVault: btcMarket.serumMarket.decoded.quoteVault,
+          market: btcAddress,
+          requestQueue: requestQueue,
+          eventQueue: eventQueue,
+          marketBids: bids,
+          marketAsks: asks,
+          coinVault: baseVault,
+          pcVault: quoteVault,
           vaultSigner: btcMarketVaultSigner,
           coinWallet: aliceBtcAccount,
         },
@@ -345,7 +398,7 @@ describe("dexaggregator", () => {
         tokenProgram: TOKEN_PROGRAM_ID,
       })
       .signers([Alice])
-      .rpc({ skipPreflight: true });
+      .rpc({ skipPreflight: false });
     console.log('swapTx', swapTx);
     const ethBalanceAfter = await connection.getTokenAccountBalance(aliceEthAccount);
     const btcBalanceAfter = await connection.getTokenAccountBalance(aliceBtcAccount);
@@ -356,7 +409,7 @@ describe("dexaggregator", () => {
     const usdcBalanceChange = usdcBalanceAfter.value.uiAmount - usdcBalanceBefore.value.uiAmount;
 
     assert.ok(-ethBalanceChange <= swapEthInput);
-    assert.ok(btcBalanceChange <= expectedBtcOutput);
+    assert.ok(btcBalanceChange / (1 - USER_FEE) <= expectedBtcOutput);
     assert.ok(usdcBalanceChange >= 0);
   });
 
@@ -376,24 +429,24 @@ describe("dexaggregator", () => {
       )
         .accounts({
           from: {
-            market: ethMarket.address,
-            requestQueue: ethMarket.serumMarket.decoded.requestQueue,
-            eventQueue: ethMarket.serumMarket.decoded.eventQueue,
-            marketBids: ethMarket.serumMarket.decoded.bids,
-            marketAsks: ethMarket.serumMarket.decoded.asks,
-            coinVault: ethMarket.serumMarket.decoded.baseVault,
-            pcVault: ethMarket.serumMarket.decoded.quoteVault,
-            vaultSigner: ethMarketVaultSigner,
-            coinWallet: aliceEthAccount,
+            market: ethAddress,
+            requestQueue: requestQueue,
+            eventQueue: eventQueue,
+            marketBids: bids,
+            marketAsks: asks,
+            coinVault: baseVault,
+            pcVault: quoteVault,
+            vaultSigner: btcMarketVaultSigner,
+            coinWallet: aliceBtcAccount,
           },
           to: {
-            market: btcMarket.address,
-            requestQueue: btcMarket.serumMarket.decoded.requestQueue,
-            eventQueue: btcMarket.serumMarket.decoded.eventQueue,
-            marketBids: btcMarket.serumMarket.decoded.bids,
-            marketAsks: btcMarket.serumMarket.decoded.asks,
-            coinVault: btcMarket.serumMarket.decoded.baseVault,
-            pcVault: btcMarket.serumMarket.decoded.quoteVault,
+            market: btcAddress,
+            requestQueue: requestQueue,
+            eventQueue: eventQueue,
+            marketBids: bids,
+            marketAsks: asks,
+            coinVault: baseVault,
+            pcVault: quoteVault,
             vaultSigner: btcMarketVaultSigner,
             coinWallet: aliceBtcAccount,
           },
@@ -403,7 +456,7 @@ describe("dexaggregator", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
         })
         .signers([Alice])
-        .rpc({ skipPreflight: true });
+        .rpc({ skipPreflight: false });
     } catch (err) {
       const ethBalanceAfter = await connection.getTokenAccountBalance(aliceEthAccount);
       const btcBalanceAfter = await connection.getTokenAccountBalance(aliceBtcAccount);
@@ -439,24 +492,24 @@ describe("dexaggregator", () => {
       )
         .accounts({
           from: {
-            market: ethMarket.address,
-            requestQueue: ethMarket.serumMarket.decoded.requestQueue,
-            eventQueue: ethMarket.serumMarket.decoded.eventQueue,
-            marketBids: ethMarket.serumMarket.decoded.bids,
-            marketAsks: ethMarket.serumMarket.decoded.asks,
-            coinVault: ethMarket.serumMarket.decoded.baseVault,
-            pcVault: ethMarket.serumMarket.decoded.quoteVault,
-            vaultSigner: ethMarketVaultSigner,
-            coinWallet: aliceEthAccount,
+            market: ethAddress,
+            requestQueue: requestQueue,
+            eventQueue: eventQueue,
+            marketBids: bids,
+            marketAsks: asks,
+            coinVault: baseVault,
+            pcVault: quoteVault,
+            vaultSigner: btcMarketVaultSigner,
+            coinWallet: aliceBtcAccount,
           },
           to: {
-            market: btcMarket.address,
-            requestQueue: btcMarket.serumMarket.decoded.requestQueue,
-            eventQueue: btcMarket.serumMarket.decoded.eventQueue,
-            marketBids: btcMarket.serumMarket.decoded.bids,
-            marketAsks: btcMarket.serumMarket.decoded.asks,
-            coinVault: btcMarket.serumMarket.decoded.baseVault,
-            pcVault: btcMarket.serumMarket.decoded.quoteVault,
+            market: btcAddress,
+            requestQueue: requestQueue,
+            eventQueue: eventQueue,
+            marketBids: bids,
+            marketAsks: asks,
+            coinVault: baseVault,
+            pcVault: quoteVault,
             vaultSigner: btcMarketVaultSigner,
             coinWallet: aliceBtcAccount,
           },
@@ -466,7 +519,7 @@ describe("dexaggregator", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
         })
         .signers([Alice])
-        .rpc({ skipPreflight: true });
+        .rpc({ skipPreflight: false });
     } catch (err) {
       const ethBalanceAfter = await connection.getTokenAccountBalance(aliceEthAccount);
       const btcBalanceAfter = await connection.getTokenAccountBalance(aliceBtcAccount);
@@ -485,4 +538,27 @@ describe("dexaggregator", () => {
 
     assert.fail('Swap Transitive should have failed because mints cannot match');
   });
+
+  it('Should fail to withdraw becuase not owner', async () => {
+    const withdrawTx = await program.methods
+        .withdraw()
+        .accounts({})
+        .signers([Alice])
+        .rpc({ skipPreflight: false });
+
+    const withdrawAmountAfter = await connection.getTokenAccountBalance(marketsOwner.publicKey);
+    assert.ok(withdrawAmountAfter.value.uiAmount === 0);
+    assert.fail("Person who withdraw is not owner");
+  });
+
+  it("Should withdraw if owner is true", async () => {
+    const withdrawTx = await program.methods
+        .withdraw()
+        .accounts({})
+        .signers([marketsOwner])
+        .rpc({ skipPreflight: false })
+
+    const withdrawAmountAfter = await connection.getTokenAccountBalance(marketsOwner.publicKey);
+    assert.ok(withdrawAmountAfter.value.uiAmount > 0);
+  })
 });

@@ -4,14 +4,14 @@
 resolution = true
 skip-lint = false
 
-[programs.localnet]
-dexaggregator = "8Gieuu4fEtwDM4Ztm6rGsaRrXZ7nTGdwZZR9xg8VqFrR"
+[programs.devnet]
+dexaggregator = "FUXgqvNpxNN87NKXyyz5u6UHe8ywEzWNsn63KUHCP96B"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "Devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

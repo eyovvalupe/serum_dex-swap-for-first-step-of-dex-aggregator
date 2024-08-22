@@ -8,15 +8,15 @@ use std::num::NonZeroU64;
 
 pub use serum_dex;
 
-#[cfg(feature = "mainnet")]
-anchor_lang::solana_program::declare_id!("9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin");
+// #[cfg(feature = "mainnet")]
+anchor_lang::solana_program::declare_id!("EoTcMgcDRTJVZDMZWBoU6rhYHZfkNTVEAfz3uUJRcYGj");
 
-#[cfg(feature = "devnet")]
-anchor_lang::solana_program::declare_id!("DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY");
+// #[cfg(feature = "devnet")]
+// anchor_lang::solana_program::declare_id!("DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY");
 
-#[cfg(not(feature = "mainnet"))]
-#[cfg(not(feature = "devnet"))]
-anchor_lang::solana_program::declare_id!("B5ytTSxaVr9g4VSrnm6mWjMM4PHucFVvq1CforZiGCm7");
+// #[cfg(not(feature = "mainnet"))]
+// #[cfg(not(feature = "devnet"))]
+// anchor_lang::solana_program::declare_id!("B5ytTSxaVr9g4VSrnm6mWjMM4PHucFVvq1CforZiGCm7");
 
 #[allow(clippy::too_many_arguments)]
 pub fn send_take<'info>(
